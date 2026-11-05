@@ -6,8 +6,10 @@ use App\Models\Category;
 use App\Models\Role;
 use App\Models\Text;
 use App\Models\User;
+use Database\Seeders\AdminSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use RuntimeException;
 use Tests\TestCase;
 
 class NewsSiteTest extends TestCase
@@ -228,6 +230,38 @@ class NewsSiteTest extends TestCase
             ->assertSessionHasErrors('username');
 
         $this->assertGuest();
+    }
+
+    public function test_admin_seeder_creates_a_hashed_admin_from_configuration(): void
+    {
+        config([
+            'app.admin.username' => 'site_admin',
+            'app.admin.email' => 'site-admin@example.test',
+            'app.admin.password' => 'a-strong-test-password',
+        ]);
+
+        $this->seed(AdminSeeder::class);
+        $this->seed(AdminSeeder::class);
+
+        $admin = User::where('username', 'site_admin')->firstOrFail();
+
+        $this->assertSame('admin', $admin->role->name);
+        $this->assertTrue(Hash::check('a-strong-test-password', $admin->password));
+        $this->assertSame(1, User::where('username', 'site_admin')->count());
+    }
+
+    public function test_admin_seeder_requires_a_strong_configured_password(): void
+    {
+        config([
+            'app.admin.username' => 'site_admin',
+            'app.admin.email' => 'site-admin@example.test',
+            'app.admin.password' => 'short-password',
+        ]);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('ADMIN_PASSWORD of at least 16 characters');
+
+        $this->seed(AdminSeeder::class);
     }
 
     private function createUserWithRole(string $roleName): User
